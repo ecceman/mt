@@ -29,12 +29,18 @@ def find_mac(mac_address: str, device_ip: str, device_type="cisco_ios") -> bool:
         device = {'device_type': device_type, 'host': device_ip, 'username': args.user, 'password': password}
         with ConnectHandler(**device) as c:
             mac_result = c.send_command('show mac address-table | i ' + cisco_mac)
-            if len(mac_result) > 1 and '^' not in mac_result:
+            if '^' in mac_result:
+                print("Command error:\n" + mac_result)
+                raise ValueError('Command error', mac_result)
+            if len(mac_result) > 1:
                 rows = mac_result.strip().split('\n')
                 mac_iface = rows[0].split()[-1]
                 # Is there a neighboring switch on this interface?
                 cdp_neighbor = c.send_command('show cdp ne ' + mac_iface + ' detail').strip().split('\n')
-                if len(cdp_neighbor) > 1 and '^' not in cdp_neighbor:
+                if '^' in mac_result:
+                    print("Command error:\n" + mac_result)
+                    raise ValueError('Command error', mac_result)
+                if len(cdp_neighbor) > 1:
                     neighbor = {}
                     for row in cdp_neighbor:
                         row = row.strip()
@@ -61,6 +67,9 @@ def find_mac(mac_address: str, device_ip: str, device_type="cisco_ios") -> bool:
             else:
                 print('MAC address not found on device ' + device_ip)
                 return False
+    except ValueError as e:
+        print(e.args)
+        return False
     except NetmikoTimeoutException as e:
         if device_type == 'cisco_ios':
             find_mac(mac_address, device_ip, device_type='cisco_ios_telnet')
