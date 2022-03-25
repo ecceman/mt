@@ -4,7 +4,7 @@ __author__ = "ecceman"
 __license__ = "MIT License"
 __status__ = "Testing"
 
-from netmiko import ConnectHandler
+from netmiko import ConnectHandler, NetmikoTimeoutException
 from getpass import getpass
 import argparse
 import validators
@@ -20,13 +20,13 @@ def strip_chars(input_str: str) -> str:
     return s
 
 
-def find_mac(mac_address: str, device_ip: str) -> bool:
+def find_mac(mac_address: str, device_ip: str, device_type="cisco_ios") -> bool:
     cisco_mac = re.sub('[^a-f\d]', '', mac_address)
     cisco_mac = cisco_mac[:4] + '.' + cisco_mac[4:8] + '.' + cisco_mac[8:]
     print('Looking for : ' + cisco_mac + ' on ' + device_ip)
 
     try:
-        device = {'device_type': 'cisco_ios', 'host': device_ip, 'username': args.user, 'password': password}
+        device = {'device_type': device_type, 'host': device_ip, 'username': args.user, 'password': password}
         with ConnectHandler(**device) as c:
             mac_result = c.send_command('show mac address-table | i ' + cisco_mac)
             if len(mac_result) > 1 and '^' not in mac_result:
@@ -61,6 +61,12 @@ def find_mac(mac_address: str, device_ip: str) -> bool:
             else:
                 print('MAC address not found on device ' + device_ip)
                 return False
+    except NetmikoTimeoutException as e:
+        if device_type == 'cisco_ios':
+            find_mac(mac_address, device_ip, device_type='cisco_ios_telnet')
+        else:
+            print("Connection to " + device_ip + "failed: " + e)
+            return False
     except Exception as e:
         print('General Exception: ' + str(e))
         return False
